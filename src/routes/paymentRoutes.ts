@@ -19,7 +19,7 @@ const razorpay = new Razorpay({
 // 1. Initiate checkout and create Razorpay Order
 router.post('/initiate', async (req, res) => {
   try {
-    const { userDetails, itemsSelected } = req.body;
+    const { userDetails, itemsSelected, foodRequired, accommodationRequired } = req.body;
     const { workshops, competitions, accommodation } = itemsSelected;
 
     let totalAmount = 0;
@@ -93,6 +93,8 @@ router.post('/initiate', async (req, res) => {
           checkIn: accommodation.checkIn
         } : undefined
       },
+      foodRequired: foodRequired || 'no',
+      accommodationRequired: accommodationRequired || 'no',
       payment: {
         orderId: order.id,
         amount: totalAmount,
