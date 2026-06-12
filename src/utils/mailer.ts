@@ -12,7 +12,7 @@ const transporter = nodemailer.createTransport({
 });
 
 export const sendReceiptEmail = async (registration: any) => {
-  const { userDetails, itemsSelected, payment } = registration;
+  const { userDetails, itemsSelected, payment, foodRequired, accommodationRequired } = registration;
 
   if (!userDetails || !payment) {
     console.error('Mailer Error: userDetails or payment info is missing from registration.');
@@ -31,7 +31,7 @@ export const sendReceiptEmail = async (registration: any) => {
     .join('');
 
   const accDetails = (itemsSelected && itemsSelected.accommodation && itemsSelected.accommodation.option && itemsSelected.accommodation.option.type)
-    ? `<li><strong>Accommodation:</strong> ${itemsSelected.accommodation.option.type} (${itemsSelected.accommodation.days || 1} Days)</li>`
+    ? `<li><strong>Accommodation Option:</strong> ${itemsSelected.accommodation.option.type} (${itemsSelected.accommodation.days || 1} Days)</li>`
     : '';
 
   const htmlContent = `
@@ -56,6 +56,8 @@ export const sendReceiptEmail = async (registration: any) => {
           ${workshopsList}
           ${compsList}
           ${accDetails}
+          <li><strong>Food Required:</strong> ${foodRequired === 'yes' ? 'Yes' : 'No'}</li>
+          <li><strong>Accommodation Required:</strong> ${accommodationRequired === 'yes' ? 'Yes' : 'No'}</li>
         </ul>
       </div>
 
@@ -69,7 +71,7 @@ export const sendReceiptEmail = async (registration: any) => {
     from: process.env.SMTP_FROM || 'Adhyayan 2026 <amcadhyayan@gmail.com>',
     to: userDetails.email,
     subject: 'Adhyayan 2026 - Registration & Payment Success Receipt',
-    text: `Hello ${userDetails.fullName || 'Participant'},\n\nYour registration for Adhyayan 2026 has been successfully confirmed!\n\nOrder Details:\n- Ticket ID: ${registration._id}\n- Payment ID: ${payment.paymentId || 'N/A'}\n- College: ${userDetails.college || 'N/A'}\n\nPlease carry a printout or show a digital copy of this email at the registration desk upon arrival.`,
+    text: `Hello ${userDetails.fullName || 'Participant'},\n\nYour registration for Adhyayan 2026 has been successfully confirmed!\n\nOrder Details:\n- Ticket ID: ${registration._id}\n- Payment ID: ${payment.paymentId || 'N/A'}\n- College: ${userDetails.college || 'N/A'}\n- Food Required: ${foodRequired === 'yes' ? 'Yes' : 'No'}\n- Accommodation Required: ${accommodationRequired === 'yes' ? 'Yes' : 'No'}\n\nPlease carry a printout or show a digital copy of this email at the registration desk upon arrival.`,
     html: htmlContent
   };
 

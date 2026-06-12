@@ -17,6 +17,8 @@ const RegistrationSchema = new Schema({
       checkIn: { type: Date }
     }
   },
+  foodRequired: { type: String, enum: ['yes', 'no'], default: 'no' },
+  accommodationRequired: { type: String, enum: ['yes', 'no'], default: 'no' },
   payment: {
     orderId: { type: String, default: '' },
     paymentId: { type: String, default: '' },
