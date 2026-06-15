@@ -480,32 +480,61 @@ const defaultAccommodation = [
   }
 ];
 
+// Parse legacy slot string "label | url" into a slot object
+const parseSlot = (slotStr: string, defaultTotal = 50) => {
+  const lastPipe = slotStr.lastIndexOf(' | ');
+  if (lastPipe !== -1) {
+    return {
+      label: slotStr.substring(0, lastPipe).trim(),
+      url:   slotStr.substring(lastPipe + 3).trim(),
+      slotsTotal: defaultTotal,
+      slotsFilled: 0
+    };
+  }
+  return { label: slotStr.trim(), url: '', slotsTotal: defaultTotal, slotsFilled: 0 };
+};
+
 export const seedDatabase = async () => {
   try {
-    console.log('Seeding initial database...');
-    
-    // Clear existing to avoid duplicate conflicts and apply new June/July changes
-    await Workshop.deleteMany({});
-    console.log('Cleared existing workshops.');
+    console.log('Running safe database seed (upsert mode)...');
 
-    await Competition.deleteMany({});
-    console.log('Cleared existing competitions.');
-
-    // Seed Workshops
+    // Upsert Workshops — update fields but NEVER delete existing documents.
+    // Per-slot slotsFilled counts are preserved when merging.
     for (const w of defaultWorkshops) {
       const idSlug = w.title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      await Workshop.create({ ...w, id: idSlug });
-      console.log(`Seeded Workshop: ${w.title}`);
+      const { slotsFilled, slots: rawSlots, ...coreFields } = w;
+      const newSlotObjects = (rawSlots || []).map(s => parseSlot(s));
+
+      const existing = await Workshop.findOne({ id: idSlug });
+      if (existing) {
+        // Merge: update labels/urls/totals but keep live slotsFilled per slot
+        const mergedSlots = newSlotObjects.map((ns, i) => {
+          const old = (existing.slots as any[])[i];
+          return { label: ns.label, url: ns.url, slotsTotal: ns.slotsTotal, slotsFilled: old ? old.slotsFilled : 0 };
+        });
+        await Workshop.findOneAndUpdate(
+          { id: idSlug },
+          { $set: { ...coreFields, id: idSlug, slots: mergedSlots } },
+          { new: true }
+        );
+      } else {
+        await Workshop.create({ ...coreFields, id: idSlug, slotsFilled: slotsFilled ?? 0, slots: newSlotObjects });
+      }
+      console.log(`Upserted Workshop: ${w.title}`);
     }
 
-    // Seed Competitions
+    // Upsert Competitions — safe upsert, no slot tracking needed
     for (const c of defaultCompetitions) {
       const idSlug = c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      await Competition.create({ ...c, id: idSlug });
-      console.log(`Seeded Competition: ${c.title}`);
+      await Competition.findOneAndUpdate(
+        { id: idSlug },
+        { $set: { ...c, id: idSlug } },
+        { upsert: true, new: true }
+      );
+      console.log(`Upserted Competition: ${c.title}`);
     }
 
-    // Seed Accommodations
+    // Upsert Accommodations — only insert if not already present
     for (const a of defaultAccommodation) {
       const exists = await Accommodation.findOne({ type: a.type });
       if (!exists) {
@@ -514,7 +543,7 @@ export const seedDatabase = async () => {
       }
     }
 
-    console.log('Database seeding successfully check completed.');
+    console.log('Database seed completed safely — no existing data was deleted.');
   } catch (error) {
     console.error('Error seeding database:', error);
   }

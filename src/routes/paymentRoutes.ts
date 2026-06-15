@@ -19,7 +19,7 @@ const razorpay = new Razorpay({
 // 1. Initiate checkout and create Razorpay Order
 router.post('/initiate', async (req, res) => {
   try {
-    const { userDetails, itemsSelected, foodRequired, accommodationRequired } = req.body;
+    const { userDetails, itemsSelected, foodRequired, accommodationRequired, selectedSlotIndex } = req.body;
     const { workshops, competitions, accommodation } = itemsSelected;
 
     let totalAmount = 0;
@@ -93,6 +93,7 @@ router.post('/initiate', async (req, res) => {
           checkIn: accommodation.checkIn
         } : undefined
       },
+      selectedSlotIndex: typeof selectedSlotIndex === 'number' ? selectedSlotIndex : -1,
       foodRequired: foodRequired || 'no',
       accommodationRequired: accommodationRequired || 'no',
       payment: {
@@ -150,10 +151,26 @@ router.post('/verify', async (req, res) => {
     }
     await registration.save();
 
-    // Increment filled slots for workshops
+    // Increment filled slots — per-slot AND overall
     if (registration.itemsSelected && registration.itemsSelected.workshops && registration.itemsSelected.workshops.length > 0) {
       const workshopIds = registration.itemsSelected.workshops.map((w: any) => w._id);
-      await Workshop.updateMany({ _id: { $in: workshopIds } }, { $inc: { slotsFilled: 1 } });
+      const slotIdx = (registration as any).selectedSlotIndex;
+
+      if (typeof slotIdx === 'number' && slotIdx >= 0) {
+        // Increment the specific slot's slotsFilled in the slots array
+        await Workshop.updateMany(
+          { _id: { $in: workshopIds } },
+          {
+            $inc: {
+              slotsFilled: 1,
+              [`slots.${slotIdx}.slotsFilled`]: 1
+            }
+          }
+        );
+      } else {
+        // No specific slot — just increment overall count
+        await Workshop.updateMany({ _id: { $in: workshopIds } }, { $inc: { slotsFilled: 1 } });
+      }
     }
 
     // Trigger SMTP confirmation email

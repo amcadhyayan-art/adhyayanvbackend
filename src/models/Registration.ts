@@ -17,12 +17,14 @@ const RegistrationSchema = new Schema({
       checkIn: { type: Date }
     }
   },
+  // Index of the slot chosen within the workshop's slots array (-1 = none / not applicable)
+  selectedSlotIndex: { type: Number, default: -1 },
   foodRequired: { type: String, enum: ['yes', 'no'], default: 'no' },
   accommodationRequired: { type: String, enum: ['yes', 'no'], default: 'no' },
   payment: {
     orderId: { type: String, default: '' },
     paymentId: { type: String, default: '' },
-    amount: { type: Number, required: true }, // Total amount in INR
+    amount: { type: Number, required: true },
     status: {
       type: String,
       enum: ['pending', 'success', 'failed'],
