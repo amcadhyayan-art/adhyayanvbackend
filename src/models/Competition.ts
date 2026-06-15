@@ -1,5 +1,11 @@
 import mongoose, { Schema } from 'mongoose';
 
+const SlotSchema = new Schema({
+  label: { type: String, required: true },   // e.g. "9:00 AM – 1:00 PM | July 12, 2026"
+  slotsTotal: { type: Number, default: 50 },
+  slotsFilled: { type: Number, default: 0 }
+}, { _id: false });
+
 const CompetitionSchema = new Schema({
   id: { type: String, default: '' },
   title: { type: String, required: true, unique: true },
@@ -20,7 +26,8 @@ const CompetitionSchema = new Schema({
   }],
   guidelines: [{ type: String }],
   topics: [{ type: String }],
-  judgingCriteria: [{ type: String }]
+  judgingCriteria: [{ type: String }],
+  slots: [SlotSchema]
 });
 
 export const Competition = mongoose.model('Competition', CompetitionSchema);
