@@ -22,7 +22,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api', publicRoutes);
 app.use('/api/payment', paymentRoutes);
 
-import { seedDatabase } from './utils/seeder';
+
 
 // Database connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/adhyayan2026';
@@ -30,7 +30,6 @@ mongoose
   .connect(MONGODB_URI)
   .then(async () => {
     console.log('Successfully connected to MongoDB.');
-    await seedDatabase();
   })
   .catch((err) => console.error('MongoDB connection error:', err));
 
