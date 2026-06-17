@@ -24,6 +24,8 @@ const RegistrationSchema = new Schema({
   payment: {
     orderId: { type: String, default: '' },
     paymentId: { type: String, default: '' },
+    transactionId: { type: String, default: '' },
+    paymentApp: { type: String, default: '' },
     amount: { type: Number, required: true },
     status: {
       type: String,
@@ -31,6 +33,7 @@ const RegistrationSchema = new Schema({
       default: 'pending'
     }
   },
+  verified: { type: Boolean, default: false },
   registeredAt: { type: Date, default: Date.now }
 });
 

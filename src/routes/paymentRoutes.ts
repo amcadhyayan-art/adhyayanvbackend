@@ -185,4 +185,96 @@ router.post('/verify', async (req, res) => {
   }
 });
 
+// 3. Manual UPI Submit
+router.post('/submit-manual', async (req, res) => {
+  try {
+    const { userDetails, itemsSelected, foodRequired, accommodationRequired, selectedSlotIndex, transactionId, paymentApp } = req.body;
+    const { workshops, competitions, accommodation } = itemsSelected;
+
+    let totalAmount = 0;
+    const resolvedWorkshopIds: mongoose.Types.ObjectId[] = [];
+    const resolvedCompetitionIds: mongoose.Types.ObjectId[] = [];
+
+    // Fetch workshops and sum price
+    if (workshops && workshops.length > 0) {
+      for (const wId of workshops) {
+        const query = mongoose.Types.ObjectId.isValid(wId)
+          ? { _id: wId }
+          : { id: wId };
+        const ws = await Workshop.findOne(query);
+        if (ws) {
+          resolvedWorkshopIds.push(ws._id as mongoose.Types.ObjectId);
+          totalAmount += ws.price;
+        }
+      }
+    }
+
+    // Fetch competitions and sum price
+    if (competitions && competitions.length > 0) {
+      for (const cId of competitions) {
+        const query = mongoose.Types.ObjectId.isValid(cId)
+          ? { _id: cId }
+          : { id: cId };
+        const comp = await Competition.findOne(query);
+        if (comp) {
+          resolvedCompetitionIds.push(comp._id as mongoose.Types.ObjectId);
+          totalAmount += comp.price;
+        }
+      }
+    }
+
+    // Fetch accommodation price
+    let resolvedAccOption: mongoose.Types.ObjectId | undefined = undefined;
+    if (accommodation && accommodation.option) {
+      const query = mongoose.Types.ObjectId.isValid(accommodation.option)
+        ? { _id: accommodation.option }
+        : { id: accommodation.option };
+      const dbAcc = await Accommodation.findOne(query);
+      if (dbAcc) {
+        resolvedAccOption = dbAcc._id as mongoose.Types.ObjectId;
+        totalAmount += dbAcc.pricePerDay * (accommodation.days || 1);
+      }
+    }
+
+    if (totalAmount <= 0) {
+      return res.status(400).json({ message: 'Invalid total checkout amount' });
+    }
+
+    // Save registration status as pending, waiting for manual verification
+    const registration = new Registration({
+      userDetails,
+      itemsSelected: {
+        workshops: resolvedWorkshopIds,
+        competitions: resolvedCompetitionIds,
+        accommodation: resolvedAccOption ? {
+          option: resolvedAccOption,
+          days: accommodation.days || 0,
+          checkIn: accommodation.checkIn
+        } : undefined
+      },
+      selectedSlotIndex: typeof selectedSlotIndex === 'number' ? selectedSlotIndex : -1,
+      foodRequired: foodRequired || 'no',
+      accommodationRequired: accommodationRequired || 'no',
+      payment: {
+        orderId: '',
+        transactionId: transactionId,
+        paymentApp: paymentApp,
+        amount: totalAmount,
+        status: 'pending'
+      },
+      verified: false
+    });
+
+    await registration.save();
+
+    res.json({
+      message: 'Registration submitted and pending verification.',
+      registrationId: registration._id
+    });
+  } catch (error: any) {
+    console.error('Manual payment submit error:', error);
+    res.status(500).json({ message: error.message || 'Payment submission failed' });
+  }
+});
+
 export default router;
