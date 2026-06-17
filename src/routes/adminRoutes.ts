@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { sendReceiptEmail } from '../utils/mailer';
 import jwt from 'jsonwebtoken';
 import { verifyAdminToken, AuthRequest } from '../middleware/auth';
 import { Workshop } from '../models/Workshop';
@@ -141,6 +142,62 @@ router.get('/registrations', async (req: AuthRequest, res: Response) => {
       .sort({ registeredAt: -1 });
     res.json(list);
   } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+
+// 6. Verify Registration (Manual UPI)
+router.put('/registrations/:id/verify', async (req: AuthRequest, res: Response) => {
+  try {
+    const registration = await Registration.findById(req.params.id)
+      .populate('itemsSelected.workshops')
+      .populate('itemsSelected.competitions')
+      .populate('itemsSelected.accommodation.option');
+
+    if (!registration) {
+      return res.status(404).json({ message: 'Registration not found' });
+    }
+
+    if (registration.verified) {
+      return res.status(400).json({ message: 'Registration is already verified' });
+    }
+
+    // Update status
+    if (registration.payment) {
+      registration.payment.status = 'success';
+    }
+    registration.verified = true;
+    await registration.save();
+
+    // Increment filled slots
+    if (registration.itemsSelected && registration.itemsSelected.workshops && registration.itemsSelected.workshops.length > 0) {
+      const workshopIds = registration.itemsSelected.workshops.map((w: any) => w._id);
+      const slotIdx = (registration as any).selectedSlotIndex;
+
+      if (typeof slotIdx === 'number' && slotIdx >= 0) {
+        await Workshop.updateMany(
+          { _id: { $in: workshopIds } },
+          {
+            $inc: {
+              slotsFilled: 1,
+              [`slots.${slotIdx}.slotsFilled`]: 1
+            }
+          }
+        );
+      } else {
+        await Workshop.updateMany({ _id: { $in: workshopIds } }, { $inc: { slotsFilled: 1 } });
+      }
+    }
+
+    // Trigger SMTP confirmation email
+    console.log('Initiating receipt email dispatch for manually verified registration...');
+    await sendReceiptEmail(registration);
+    console.log('Receipt email dispatch complete.');
+
+    res.json({ message: 'Registration verified and confirmation email sent.', registration });
+  } catch (error: any) {
+    console.error('Verify Registration Error:', error);
     res.status(500).json({ message: error.message });
   }
 });
