@@ -149,6 +149,14 @@ router.post('/verify', async (req, res) => {
       registration.payment.status = 'success';
       registration.payment.paymentId = razorpay_payment_id;
     }
+
+    // Generate Adhyayan ID
+    if (!registration.adhyayanId) {
+      const count = await Registration.countDocuments({ adhyayanId: { $exists: true, $ne: null } });
+      registration.adhyayanId = `ADHYAYAN2026-${(count + 1).toString().padStart(4, '0')}`;
+    }
+
+    registration.verified = true;
     await registration.save();
 
     // Increment filled slots — per-slot AND overall

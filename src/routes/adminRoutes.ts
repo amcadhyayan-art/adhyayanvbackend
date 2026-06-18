@@ -167,6 +167,13 @@ router.put('/registrations/:id/verify', async (req: AuthRequest, res: Response) 
     if (registration.payment) {
       registration.payment.status = 'success';
     }
+    
+    // Generate Adhyayan ID
+    if (!registration.adhyayanId) {
+      const count = await Registration.countDocuments({ adhyayanId: { $exists: true, $ne: null } });
+      registration.adhyayanId = `ADHYAYAN2026-${(count + 1).toString().padStart(4, '0')}`;
+    }
+
     registration.verified = true;
     await registration.save();
 
