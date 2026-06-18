@@ -22,7 +22,17 @@ export const sendReceiptEmail = async (registration: any) => {
   // Render HTML list of items safely
   const workshopsList = ((itemsSelected && itemsSelected.workshops) || [])
     .filter((w: any) => w && w.title)
-    .map((w: any) => `<li><strong>Workshop:</strong> ${w.title}</li>`)
+    .map((w: any) => {
+      let slotText = '';
+      if (typeof registration.selectedSlotIndex === 'number' && registration.selectedSlotIndex >= 0 && w.slots && w.slots[registration.selectedSlotIndex]) {
+        const slotData = w.slots[registration.selectedSlotIndex];
+        const slotLabel = slotData.label || slotData.time || '';
+        if (slotLabel) {
+          slotText = ` (Slot: ${slotLabel.split('|')[0].trim()})`;
+        }
+      }
+      return `<li><strong>Workshop:</strong> ${w.title}${slotText}</li>`;
+    })
     .join('');
 
   const compsList = ((itemsSelected && itemsSelected.competitions) || [])
@@ -46,6 +56,11 @@ export const sendReceiptEmail = async (registration: any) => {
         <p style="color: #334155; font-size: 15px; line-height: 1.6;">Dear <strong>${userDetails.fullName || 'Participant'}</strong>,</p>
         <p style="color: #334155; font-size: 15px; line-height: 1.6;">Thank you for registering for Adhyayan 2026. Your payment of <strong>INR ${payment.amount || 0}</strong> was processed successfully.</p>
       </div>
+      
+      ${registration.adhyayanId ? `<div style="background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 16px; margin: 24px 0; text-align: center;">
+        <p style="color: #0369a1; font-size: 13px; margin: 0 0 4px 0; font-weight: bold; letter-spacing: 1px;">YOUR REGISTRATION ID</p>
+        <h2 style="color: #0284c7; margin: 0; font-size: 24px; letter-spacing: 2px;">${registration.adhyayanId}</h2>
+      </div>` : ''}
 
       <div style="background-color: #f8fafc; border: 1px solid #f1f5f9; border-radius: 8px; padding: 16px; margin: 24px 0;">
         <h3 style="color: #0f172a; font-size: 16px; margin-top: 0; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px;">Order Details</h3>
@@ -71,7 +86,7 @@ export const sendReceiptEmail = async (registration: any) => {
     from: process.env.SMTP_FROM || 'Adhyayan 2026 <amcadhyayan@gmail.com>',
     to: userDetails.email,
     subject: 'Adhyayan 2026 - Registration & Payment Success Receipt',
-    text: `Hello ${userDetails.fullName || 'Participant'},\n\nYour registration for Adhyayan 2026 has been successfully confirmed!\n\nOrder Details:\n- Ticket ID: ${registration._id}\n- Payment ID: ${payment.paymentId || 'N/A'}\n- College: ${userDetails.college || 'N/A'}\n- Food Required: ${foodRequired === 'yes' ? 'Yes' : 'No'}\n- Accommodation Required: ${accommodationRequired === 'yes' ? 'Yes' : 'No'}\n\nPlease carry a printout or show a digital copy of this email at the registration desk upon arrival.`,
+    text: `Hello ${userDetails.fullName || 'Participant'},\n\nYour registration for Adhyayan 2026 has been successfully confirmed!\n\nOrder Details:\n- Adhyayan ID: ${registration.adhyayanId || 'N/A'}\n- Ticket ID: ${registration._id}\n- Payment ID: ${payment.paymentId || 'N/A'}\n- College: ${userDetails.college || 'N/A'}\n- Food Required: ${foodRequired === 'yes' ? 'Yes' : 'No'}\n- Accommodation Required: ${accommodationRequired === 'yes' ? 'Yes' : 'No'}\n\nPlease carry a printout or show a digital copy of this email at the registration desk upon arrival.`,
     html: htmlContent
   };
 

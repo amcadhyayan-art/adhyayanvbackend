@@ -34,6 +34,7 @@ const RegistrationSchema = new Schema({
     }
   },
   verified: { type: Boolean, default: false },
+  adhyayanId: { type: String, unique: true, sparse: true },
   registeredAt: { type: Date, default: Date.now }
 });
 
