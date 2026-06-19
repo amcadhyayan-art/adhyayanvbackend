@@ -81,32 +81,23 @@ router.post('/initiate', async (req, res) => {
 
     const order = await razorpay.orders.create(options);
 
-    // Save registration status as pending
-    const registration = new Registration({
-      userDetails,
-      itemsSelected: {
-        workshops: resolvedWorkshopIds,
-        competitions: resolvedCompetitionIds,
-        accommodation: resolvedAccOption ? {
-          option: resolvedAccOption,
-          days: accommodation.days || 0,
-          checkIn: accommodation.checkIn
-        } : undefined
-      },
-      selectedSlotIndex: typeof selectedSlotIndex === 'number' ? selectedSlotIndex : -1,
-      foodRequired: foodRequired || 'no',
-      accommodationRequired: accommodationRequired || 'no',
-      payment: {
-        orderId: order.id,
-        amount: totalAmount,
-        status: 'pending'
-      }
-    });
-
-    await registration.save();
-
     res.json({
-      registrationId: registration._id,
+      registrationData: {
+        userDetails,
+        itemsSelected: {
+          workshops: resolvedWorkshopIds,
+          competitions: resolvedCompetitionIds,
+          accommodation: resolvedAccOption ? {
+            option: resolvedAccOption,
+            days: accommodation.days || 0,
+            checkIn: accommodation.checkIn
+          } : undefined
+        },
+        selectedSlotIndex: typeof selectedSlotIndex === 'number' ? selectedSlotIndex : -1,
+        foodRequired: foodRequired || 'no',
+        accommodationRequired: accommodationRequired || 'no',
+        totalAmount
+      },
       orderId: order.id,
       amount: order.amount,
       currency: order.currency,
@@ -121,7 +112,7 @@ router.post('/initiate', async (req, res) => {
 // 2. Verify Razorpay Payment Signature
 router.post('/verify', async (req, res) => {
   try {
-    const { registrationId, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    const { registrationData, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
     const secret = process.env.RAZORPAY_KEY_SECRET || 'dummy_secret';
     
@@ -135,20 +126,22 @@ router.post('/verify', async (req, res) => {
       return res.status(400).json({ message: 'Payment verification failed. Invalid signature.' });
     }
 
-    // Update DB status to success
-    const registration = await Registration.findById(registrationId)
-      .populate('itemsSelected.workshops')
-      .populate('itemsSelected.competitions')
-      .populate('itemsSelected.accommodation.option');
-
-    if (!registration) {
-      return res.status(404).json({ message: 'Registration record not found.' });
-    }
-
-    if (registration.payment) {
-      registration.payment.status = 'success';
-      registration.payment.paymentId = razorpay_payment_id;
-    }
+    // Now save to DB as success
+    const registration = new Registration({
+      userDetails: registrationData.userDetails,
+      itemsSelected: registrationData.itemsSelected,
+      selectedSlotIndex: registrationData.selectedSlotIndex,
+      foodRequired: registrationData.foodRequired,
+      accommodationRequired: registrationData.accommodationRequired,
+      payment: {
+        orderId: razorpay_order_id,
+        amount: registrationData.totalAmount,
+        status: 'success',
+        paymentId: razorpay_payment_id,
+        paymentApp: 'Razorpay'
+      },
+      verified: true
+    });
 
     // Generate Adhyayan ID
     if (!registration.adhyayanId) {
@@ -156,8 +149,12 @@ router.post('/verify', async (req, res) => {
       registration.adhyayanId = `ADHYAYAN2026-${(count + 1).toString().padStart(4, '0')}`;
     }
 
-    registration.verified = true;
     await registration.save();
+
+    // Populate for email
+    await registration.populate('itemsSelected.workshops');
+    await registration.populate('itemsSelected.competitions');
+    await registration.populate('itemsSelected.accommodation.option');
 
     // Increment filled slots — per-slot AND overall
     if (registration.itemsSelected && registration.itemsSelected.workshops && registration.itemsSelected.workshops.length > 0) {
@@ -186,7 +183,7 @@ router.post('/verify', async (req, res) => {
     await sendReceiptEmail(registration);
     console.log('Receipt email dispatch complete.');
 
-    res.json({ message: 'Payment verified and registration successful.', registrationId });
+    res.json({ message: 'Payment verified and registration successful.', registrationId: registration._id });
   } catch (error: any) {
     console.error('Verify Route Error:', error);
     res.status(500).json({ message: error.message });
