@@ -1,13 +1,20 @@
 import nodemailer from 'nodemailer';
+import dns from 'dns';
+
+// Force IPv4 resolution to fix Node 17+ and Render IPv6 timeout issues
+dns.setDefaultResultOrder('ipv4first');
 
 // Configure SMTP transport
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: process.env.SMTP_PORT === '465', // true for 465, false for other ports
+  port: parseInt(process.env.SMTP_PORT || '465'),
+  secure: process.env.SMTP_PORT === '465' || !process.env.SMTP_PORT, // true for 465 or default
   auth: {
     user: process.env.SMTP_USER || '',
     pass: process.env.SMTP_PASS || ''
+  },
+  tls: {
+    rejectUnauthorized: false
   }
 });
 
