@@ -1,26 +1,17 @@
-import nodemailer from 'nodemailer';
-import dns from 'dns';
+import { Resend } from 'resend';
 
-// Force IPv4 resolution to fix Node 17+ and Render IPv6 timeout issues
-dns.setDefaultResultOrder('ipv4first');
-
-// Configure SMTP transport
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.SMTP_USER || '',
-    pass: process.env.SMTP_PASS || ''
-  },
-  tls: {
-    rejectUnauthorized: false
-  }
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export const sendReceiptEmail = async (registration: any) => {
   const { userDetails, itemsSelected, payment, foodRequired, accommodationRequired } = registration;
 
   if (!userDetails || !payment) {
     console.error('Mailer Error: userDetails or payment info is missing from registration.');
+    return;
+  }
+
+  if (!process.env.RESEND_API_KEY) {
+    console.error('Mailer Error: RESEND_API_KEY is not set.');
     return;
   }
 
@@ -84,20 +75,25 @@ export const sendReceiptEmail = async (registration: any) => {
       <p style="color: #64748b; font-size: 13px; line-height: 1.5; text-align: center; margin-top: 32px;">
         Please carry a printout or show a digital copy of this email at the registration desk upon arrival.
       </p>
+      <p style="color: #94a3b8; font-size: 11px; line-height: 1.5; text-align: center;">
+        If you don't see this email in your inbox, please check your spam or junk folder.
+      </p>
     </div>
   `;
 
-  const mailOptions = {
-    from: process.env.SMTP_FROM || 'Adhyayan 2026 <amcadhyayan@gmail.com>',
-    to: userDetails.email,
-    subject: 'Adhyayan 2026 - Registration & Payment Success Receipt',
-    text: `Hello ${userDetails.fullName || 'Participant'},\n\nYour registration for Adhyayan 2026 has been successfully confirmed!\n\nOrder Details:\n- Adhyayan ID: ${registration.adhyayanId || 'N/A'}\n- Ticket ID: ${registration._id}\n- Payment ID: ${payment.paymentId || 'N/A'}\n- College: ${userDetails.college || 'N/A'}\n- Food Required: ${foodRequired === 'yes' ? 'Yes' : 'No'}\n- Accommodation Required: ${accommodationRequired === 'yes' ? 'Yes' : 'No'}\n\nPlease carry a printout or show a digital copy of this email at the registration desk upon arrival.`,
-    html: htmlContent
-  };
-
   try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`Email successfully sent to ${userDetails.email}. MessageId: ${info.messageId}`);
+    const { data, error } = await resend.emails.send({
+      from: process.env.RESEND_FROM || 'Adhyayan 2026 <onboarding@resend.dev>',
+      to: [userDetails.email],
+      subject: 'Adhyayan 2026 - Registration & Payment Success Receipt',
+      html: htmlContent,
+    });
+
+    if (error) {
+      console.error('Resend API error:', error);
+    } else {
+      console.log(`Email successfully sent to ${userDetails.email}. Id: ${data?.id}`);
+    }
   } catch (error) {
     console.error('Error sending confirmation email:', error);
   }
