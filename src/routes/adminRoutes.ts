@@ -163,6 +163,57 @@ router.get('/razorpay-payments', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// 5.6 Sync Missing Razorpay Payment
+router.post('/razorpay-sync-manual', async (req: AuthRequest, res: Response) => {
+  try {
+    const { payment } = req.body;
+    
+    if (!payment || !payment.id) {
+      return res.status(400).json({ message: 'Payment data missing' });
+    }
+
+    const existing = await Registration.findOne({ 'payment.paymentId': payment.id });
+    if (existing) {
+      return res.status(400).json({ message: 'Registration already exists for this payment' });
+    }
+
+    const registration = new Registration({
+      userDetails: {
+        fullName: payment.notes?.name || payment.email?.split('@')[0] || 'Unknown',
+        email: payment.email || 'unknown@example.com',
+        phone: payment.contact || 'N/A',
+        college: 'N/A',
+        year: 'N/A'
+      },
+      itemsSelected: { workshops: [], competitions: [] },
+      foodRequired: 'no',
+      accommodationRequired: 'no',
+      payment: {
+        orderId: payment.order_id || 'manual_sync',
+        paymentId: payment.id,
+        amount: (payment.amount || 0) / 100,
+        status: 'success',
+        paymentApp: 'Razorpay'
+      },
+      verified: true
+    });
+
+    const count = await Registration.countDocuments({ adhyayanId: { $exists: true, $ne: null } });
+    registration.adhyayanId = `ADHYAYAN2026-${(count + 1).toString().padStart(4, '0')}`;
+
+    await registration.save();
+    
+    console.log('Initiating receipt email dispatch for manual sync...');
+    await sendReceiptEmail(registration);
+    console.log('Receipt email dispatch complete.');
+
+    res.json({ message: 'Synced successfully and email sent', registration });
+  } catch (error: any) {
+    console.error('Razorpay sync error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 
 // 6. Verify Registration (Manual UPI)
 router.put('/registrations/:id/verify', async (req: AuthRequest, res: Response) => {
