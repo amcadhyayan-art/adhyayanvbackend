@@ -146,6 +146,23 @@ router.get('/registrations', async (req: AuthRequest, res: Response) => {
   }
 });
 
+import Razorpay from 'razorpay';
+
+// 5.5 Fetch Raw Razorpay Payments for Audit
+router.get('/razorpay-payments', async (req: AuthRequest, res: Response) => {
+  try {
+    const razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID || 'dummy_key',
+      key_secret: process.env.RAZORPAY_KEY_SECRET || 'dummy_secret'
+    });
+    // Fetch up to 100 recent payments from Razorpay
+    const payments = await razorpay.payments.all({ count: 100 });
+    res.json(payments.items);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 
 // 6. Verify Registration (Manual UPI)
 router.put('/registrations/:id/verify', async (req: AuthRequest, res: Response) => {
