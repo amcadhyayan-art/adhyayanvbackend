@@ -93,6 +93,10 @@ export const sendReceiptEmail = async (registration: any) => {
       console.error('Resend API error:', error);
     } else {
       console.log(`Email successfully sent to ${userDetails.email}. Id: ${data?.id}`);
+      if (registration.save) {
+        registration.emailSent = true;
+        await registration.save();
+      }
     }
   } catch (error) {
     console.error('Error sending confirmation email:', error);

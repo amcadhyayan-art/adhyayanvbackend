@@ -136,9 +136,9 @@ router.delete('/accommodation/:id', async (req, res) => {
 router.get('/registrations', async (req: AuthRequest, res: Response) => {
   try {
     const list = await Registration.find()
-      .populate('itemsSelected.workshops')
-      .populate('itemsSelected.competitions')
-      .populate('itemsSelected.accommodation.option')
+      .populate('itemsSelected.workshops', 'title slots')
+      .populate('itemsSelected.competitions', 'title')
+      .populate('itemsSelected.accommodation.option', 'type')
       .sort({ registeredAt: -1 });
     res.json(list);
   } catch (error: any) {
@@ -172,7 +172,13 @@ router.post('/razorpay-sync-manual', async (req: AuthRequest, res: Response) => 
       return res.status(400).json({ message: 'Payment data missing' });
     }
 
-    const existing = await Registration.findOne({ 'payment.paymentId': payment.id });
+    const existing = await Registration.findOne({
+      $or: [
+        { 'payment.paymentId': payment.id },
+        { 'payment.transactionId': payment.id },
+        { 'payment.orderId': payment.order_id }
+      ]
+    });
     if (existing) {
       return res.status(400).json({ message: 'Registration already exists for this payment' });
     }
@@ -273,6 +279,28 @@ router.put('/registrations/:id/verify', async (req: AuthRequest, res: Response) 
     res.json({ message: 'Registration verified and confirmation email sent.', registration });
   } catch (error: any) {
     console.error('Verify Registration Error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// 7. Resend Confirmation Email
+router.post('/registrations/:id/resend-email', async (req: AuthRequest, res: Response) => {
+  try {
+    const registration = await Registration.findById(req.params.id)
+      .populate('itemsSelected.workshops')
+      .populate('itemsSelected.competitions')
+      .populate('itemsSelected.accommodation.option');
+
+    if (!registration) {
+      return res.status(404).json({ message: 'Registration not found' });
+    }
+
+    console.log(`Manual request to resend email for ${registration._id}...`);
+    await sendReceiptEmail(registration);
+
+    res.json({ message: 'Email resent successfully', registration });
+  } catch (error: any) {
+    console.error('Resend Email Error:', error);
     res.status(500).json({ message: error.message });
   }
 });
